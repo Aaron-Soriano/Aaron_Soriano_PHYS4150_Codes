@@ -30,7 +30,7 @@ if __name__ == "__main__":
     t_earth, t_ship = spaceship(args.x, args.v)
 
     print(f"""From the perspective from an observer on earth, it would take 
-          {t_earth:.3} years for the space ship to reach the planet.
-           From the perspective from an observer on the ship, it would take 
-          {t_ship:.3} years for the space ship to reach the planet. """)
+    {t_earth:.3} years for the space ship to reach the planet.
+    From the perspective from an observer on the ship, it would take 
+    {t_ship:.3} years for the space ship to reach the planet.""")
 
