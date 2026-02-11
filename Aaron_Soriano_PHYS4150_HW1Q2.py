@@ -12,7 +12,7 @@ def spaceship(x, v):
     t_earth = x / (v*c)  #years 
 
     #Time relative to ship 
-    gamma = np.sqrt(1 - v**2)
+    gamma = 1 / np.sqrt(1 - v**2)
     t_ship = t_earth / gamma
 
     return (t_earth, t_ship)
