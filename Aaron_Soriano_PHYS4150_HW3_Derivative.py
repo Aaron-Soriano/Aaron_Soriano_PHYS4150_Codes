@@ -22,7 +22,7 @@ def derivative_and_errors(f_type, f):
         f = lambda x: x * (x-1)**2
         f_prime_exact = lambda x: (x-1)**2 + 2*(x-1)*x
 
-    elif f_type == "exponental":
+    elif f_type == "exponential":
         f = lambda x: np.exp(-x)
         f_prime_exact = lambda x: -np.exp(-x)
 
@@ -35,7 +35,7 @@ def derivative_and_errors(f_type, f):
     derivative_plot.set_title("Derivative of f")
 
     #Log-Log plot of the errors
-    if f_type in ["polynomial", "exponental"]: 
+    if f_type in ["polynomial", "exponential"]: 
         x = 1
         dx_coords = np.array([1e-2 ** i for i in range(1, 8)])
         e_coords = derivative(f, x, dx_coords) - f_prime_exact(x)
@@ -67,6 +67,11 @@ if __name__ == "__main__":
                         default = None)   
     args = parser.parse_args()
 
-    exec(f"""def f(x):            #Defining the function
-             return {args.f}""")
+    if args.funt_kind == "custom":
+        exec(f"""def f(x):            #Defining the function
+                return {args.f}""")
+        
+    else:
+        f = None 
+        
     derivative_and_errors(args.funt_kind, f)
