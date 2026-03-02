@@ -95,6 +95,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     estimate = Stefan_Boltzmann_estimation(args.error_threshold)
-    print(f"""The Stefan-Boltzmann constant is about {estimate:.10e} (units)
+    print(f"""The Stefan-Boltzmann constant is about {estimate:.10e} W / (m^2 K^4)
           which is {abs(c.Stefan_Boltzmann - estimate):4e} away from the current measured value""")
 
