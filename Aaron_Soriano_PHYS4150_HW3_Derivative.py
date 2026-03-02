@@ -42,8 +42,8 @@ def derivative_and_errors(f_type, f):
 
         error_plot.loglog(dx_coords, e_coords)
         error_plot.set_title("Size of Error vs Size of Delta\n(around x=1)")
-        error_plot.set_xlabel("Delta")
-        error_plot.set_ylabel("Error")
+        error_plot.set_xlabel("log(Delta)")
+        error_plot.set_ylabel("log(Error)")
         
     if f_type == "custom":
         error_plot.remove()
@@ -62,7 +62,7 @@ if __name__ == "__main__":
                         choices = ['polynomial', 'exponential', 'custom'])  
     parser.add_argument("f",
                         type = str,
-                        help = "function to analyse the derivative of ",
+                        help = "Function to analyse the derivative of (must be single variable, in terms of x)",
                         nargs = "?",
                         default = None)   
     args = parser.parse_args()
