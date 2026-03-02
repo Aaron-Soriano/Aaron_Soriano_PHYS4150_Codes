@@ -79,7 +79,7 @@ def Stefan_Boltzmann_estimation(error_threshold):
     #Calculating W/T^4
     constant = (c.k ** 4) / (4 * c.pi**2 * c.c**2 * c.hbar**3)
 
-    total_energy =  constant * quadrature(f, a, b, 2*N) 
+    total_energy =  constant * quadrature(f, a, b, N) 
 
     return total_energy
 
