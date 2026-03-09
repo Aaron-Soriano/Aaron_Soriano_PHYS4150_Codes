@@ -18,8 +18,8 @@ def E_potential(rx, ry):
     dist_plus = np.sqrt((rx - q_plus[0])**2 + (ry - q_plus[1])**2)
     dist_minus = np.sqrt((rx - q_minus[0])**2 + (ry - q_minus[1])**2)
 
-    E_plus = 1 / (4 * c.pi * c.epsilon_0 * dist_plus)
-    E_minus = -1 / (4 * c.pi * c.epsilon_0 * dist_minus) 
+    E_plus = 1 * c.e / (4 * c.pi * c.epsilon_0 * dist_plus)
+    E_minus = -1 * c.e / (4 * c.pi * c.epsilon_0 * dist_minus) 
 
     return E_plus + E_minus
 
@@ -33,29 +33,77 @@ def gradient(f, rx, ry, h = 1e-5):
     
     return (dfdx, dfdy)
 
-def potential_and_gradient_graph():
-    x = np.linspace(-0.5, 0.5, 100)
-    y = np.linspace(-0.5, 0.5, 100)
+def potential_and_gradient_graph(plot_type):
     
     #Electical potental calculation 
-    x_coords, y_coords = np.meshgrid(x, y)
-    p_coords = E_potential(x_coords, y_coords)
+    x = np.linspace(-0.5, 0.5, 100)
+    y = np.linspace(-0.5, 0.5, 100)
+
+    Ex_coords, Ey_coords = np.meshgrid(x, y)
+    Ep_coords = E_potential(Ex_coords, Ey_coords)
     
     #Electrical force calculation
-    gradE_x, gradE_y = gradient(E_potential, x_coords, y_coords)
+    x = np.linspace(-0.5, 0.5, 10)
+    y = np.linspace(-0.5, 0.5, 10)
+
+    gx_coords, gy_coords = np.meshgrid(x, y)
+    gradE_x, gradE_y = gradient(E_potential, gx_coords, gy_coords)
     norm_factors = np.hypot(gradE_x, gradE_y)
 
     #Plotting
-    potential_plot = plt.contourf(x_coords, y_coords, p_coords)
-    force_plot = plt.quiver(x_coords, y_coords,
-               10 * gradE_x / norm_factors , 10 * gradE_y / norm_factors,
-               norm_factors,
-               cmap = "RdBu")
-    plt.title("Electric Potential with Electric Field")
-    potential_scale = plt.colorbar(potential_plot, location = "bottom")
-    potential_scale.ax.set_xlabel("Electrical Potential" + r" $V$")
-    force_scale = plt.colorbar(force_plot, location = "bottom")
-    force_scale.ax.set_xlabel("Electrical Field" + r" $\frac{V}{m}$")
+    
+    if plot_type == "potential":
+        potential_plot = plt.contourf(Ex_coords, Ey_coords, Ep_coords)
+        potential_scale = plt.colorbar(potential_plot, 
+                                       location = "bottom")
+        potential_scale.ax.set_xlabel("Electrical Potential" + r" $V$")
+        plt.title("Electric Potential on the Plate")
+
+    elif plot_type == "force":
+        force_plot = plt.quiver(gx_coords, gy_coords,
+                gradE_x / norm_factors , gradE_y / norm_factors,
+                norm_factors,
+                cmap = "RdBu")
+        force_scale = plt.colorbar(force_plot,
+                                   location = "bottom")
+        force_scale.ax.set_xlabel("Electrical Field" + r" $\frac{V}{m}$")
+        plt.title("Electric Field on the Plate")
+
+    elif plot_type == "both":
+
+        potential_plot = plt.contourf(Ex_coords, Ey_coords, Ep_coords)
+        potential_scale = plt.colorbar(potential_plot,
+                                       location = "bottom")
+        potential_scale.ax.set_xlabel("Electrical Potential" + r" $V$")
+
+        force_plot = plt.quiver(gx_coords, gy_coords,
+                gradE_x / norm_factors , gradE_y / norm_factors, #Keep the vectors length 1
+                norm_factors,                                    #Express magnitude in color
+                cmap = "RdBu")
+        force_scale = plt.colorbar(force_plot,
+                                    location = "bottom")
+        force_scale.ax.set_xlabel("Electrical Field" + r" $\frac{V}{m}$")
+        plt.title("Electric Potential and Electric Field on the Plate")
+
+    elif plot_type == "seperate":
+        fig, (potential_axis, force_axis) = plt.subplots(1, 2)
+        
+        potential_plot = potential_axis.contourf(Ex_coords, Ey_coords, Ep_coords)
+        potential_scale = fig.colorbar(potential_plot, location = "bottom")
+        potential_scale.ax.set_xlabel("Electrical Potential" + r" $V$")
+        potential_axis.set_title("Electric Potential")
+
+        force_plot = force_axis.quiver(gx_coords, gy_coords,
+                gradE_x / norm_factors , gradE_y / norm_factors, #Keep the vectors length 1
+                norm_factors,                                    #Express magnitude in color
+                cmap = "RdBu")
+        force_scale = fig.colorbar(force_plot, location = "bottom")
+        force_scale.ax.set_xlabel("Electrical Field" + r" $\frac{V}{m}$")
+        force_axis.set_title("Electric Field")
+
+        plt.suptitle("Electric Potential and Electric Field on the Plate")
+
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":    
@@ -71,9 +119,10 @@ if __name__ == "__main__":
                         seperate: Both plots, but seperate
                         """,
                         nargs = "?",
-                        default = "both")   
+                        default = "both",
+                        choices = ["potential", "force", "both", "seperate"])   
     args = parser.parse_args()
     
-    potential_and_gradient_graph()
+    potential_and_gradient_graph(args.plot_type)
     
 
