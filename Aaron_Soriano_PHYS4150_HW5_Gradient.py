@@ -107,8 +107,6 @@ def potential_and_gradient_graph(plot_type):
     plt.show()
 
 if __name__ == "__main__":    
-    #To do: Add argparse support
-    #Maybe potential/force/both/seperate
     parser = argparse.ArgumentParser()
     parser.add_argument("plot_type",
                         type = str,
