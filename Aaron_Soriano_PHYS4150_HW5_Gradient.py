@@ -31,7 +31,7 @@ def gradient(f, rx, ry, h = 1e-5):
     dfdx = (f(rx + (h/2), ry) - f(rx - (h/2), ry)) / h
     dfdy = (f(rx, ry + (h/2)) - f(rx, ry - (h/2))) / h
     
-    return (dfdx, dfdy)
+    return (-dfdx, -dfdy)
 
 def potential_and_gradient_graph(plot_type):
     
@@ -48,6 +48,8 @@ def potential_and_gradient_graph(plot_type):
 
     gx_coords, gy_coords = np.meshgrid(x, y)
     gradE_x, gradE_y = gradient(E_potential, gx_coords, gy_coords)
+    gradE_x *= -1 #Electric Field = -grad(potential)
+    gradE_y *= -1
     norm_factors = np.hypot(gradE_x, gradE_y)
 
     #Plotting
@@ -61,7 +63,7 @@ def potential_and_gradient_graph(plot_type):
 
     elif plot_type == "force":
         force_plot = plt.quiver(gx_coords, gy_coords,
-                gradE_x / norm_factors , gradE_y / norm_factors,
+                gradE_x / norm_factors, gradE_y / norm_factors,
                 norm_factors,
                 cmap = "RdBu")
         force_scale = plt.colorbar(force_plot,
