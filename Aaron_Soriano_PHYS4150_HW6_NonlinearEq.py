@@ -43,7 +43,7 @@ def estimate_energy_levels(energy_min, energy_max):
     rhs_odd = lambda E: -np.sqrt(E / (V - E))
     
     energy_df = pd.DataFrame({
-        "energy" : np.linspace(energy_min, energy_max, 100)
+        "energy" : np.arange(energy_min, energy_max, 1)
         })
     
     energy_df["lhs"] = lhs(energy_df["energy"])
@@ -136,24 +136,50 @@ def plot_energy_levels(energy_df, roots = []):
         rhs_odd = lambda E: -np.sqrt(E / (V - E))
 
         even_roots, odd_roots = roots
+        even_roots = np.array(even_roots)
+        odd_roots = np.array(odd_roots)
         
+        ax["left_and_even_plot"].scatter(even_roots, lhs(even_roots) - rhs_even(even_roots),
+                                         color = "red")
+        ax["left_and_odd_plot"].scatter(odd_roots, lhs(odd_roots) - rhs_odd(odd_roots),
+                                        color = "red")
+        ax["left_and_both_plot"].scatter(even_roots, lhs(even_roots), 
+                                          color = "red",
+                                          label = "Roots for even states")
+        ax["left_and_both_plot"].scatter(odd_roots, lhs(odd_roots), 
+                                         color = "red",
+                                         label = "Roots for odd states")
+
         for root in even_roots:
 
-            ax["left_and_even_plot"].axvline(root)
-            ax["left_and_both_plot"].axvline(root, color = "blue")
+            ax["left_and_even_plot"].annotate(
+                f"{root:.1f} eV",
+                xy=(root, lhs(root) - rhs_even(root)),
+                xycoords='data',
+                xytext=(1.5, 1.5),
+                textcoords='offset points')
+            
+            ax["left_and_both_plot"].annotate(
+                f"{root:.1f}",
+                xy=(root, lhs(root)),
+                xycoords='data',
+                xytext=(1.5, 1.5),
+                textcoords='offset points')
     
 
         for root in odd_roots:
-            ax["left_and_odd_plot"].axvline(root)  
-            ax["left_and_both_plot"].axvline(root, color = "orange")  
-    
-
-        #for root in even_roots:
+            ax["left_and_odd_plot"].annotate(
+                f"{root:.1f} eV",
+                xy=(root, lhs(root) - rhs_odd(root)), xycoords='data',
+                xytext=(1.5, 1.5), textcoords='offset points')
             
-        #    ax["left_and_even_plot"].annotate(
-        #        f"{root[0]:.3f}",
-        #        xy=(root[0], root[1]), xycoords='data',
-        #        xytext=(1.5, 1.5), textcoords='offset points')
+            ax["left_and_both_plot"].annotate(
+                f"{root:.1f}",
+                xy=(root, lhs(root)),
+                xycoords='data',
+                xytext=(1.5, 1.5),
+                textcoords='offset points')
+            #ax["left_and_both_plot"].axvline(root, color = "orange")  
             
     #plt.legend()
     plt.tight_layout()        
