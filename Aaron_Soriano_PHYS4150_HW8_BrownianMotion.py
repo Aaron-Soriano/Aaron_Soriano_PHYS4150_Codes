@@ -41,7 +41,7 @@ def particle_motion(steps, rng):
         #Move the particle 
         x_pos += x_move
         y_pos += y_move    
-
+    
     return x_coords, y_coords
 
 def particle_animation(x_coords, y_coords, show_path):
@@ -54,28 +54,28 @@ def particle_animation(x_coords, y_coords, show_path):
 
     ax.set_xlim((-50, 50))
     ax.set_ylim((-50, 50))
+    ax.set_title("Brownian Motion Particle")
+    
+    line = ax.plot(x_coords[0], y_coords[0],
+                   color = "green",
+                   zorder = 1)[0]
     
     particle = patch.Circle((0,0),
                             radius = 1,
-                            facecolor = "blue")
+                            facecolor = "blue",
+                            zorder = 2)
     ax.add_patch(particle)
-    
-    
-    #line = patch.Polygon([(0, 0)],
-    #                     closed = False,
-    #                     fill = None,
-    #                     edgecolor = 'green')
-    #ax.add_patch(line)
     
 
     def update(frame):
         x_pos =  x_coords[frame]
         y_pos = y_coords[frame]
 
-        particle.set_center = (x_pos, y_pos)
-        #line.set_xy(x_coords[:frame], y_coords[:frame])
+        particle.set_center((x_pos, y_pos))
+        line.set_xdata(x_coords[:frame])
+        line.set_ydata(y_coords[:frame])
     
-        return particle#, line 
+        return particle, line 
 
     ani = anime.FuncAnimation(fig = fig,
                               func = update,
@@ -83,8 +83,8 @@ def particle_animation(x_coords, y_coords, show_path):
                               frames = args.steps
                               )    
     
-    #if not show_path:  #Remove the path if not asked for
-    #    line.remove()
+    if not show_path:  #Remove the path if not asked for
+        line.remove()
 
     plt.show()
 
@@ -94,12 +94,12 @@ if __name__ == "__main__":
                         type = bool,
                         help = "Show the previous steps as a line behind the particle",
                         nargs = "?",
-                        default = False)   
+                        default = True)   
     parser.add_argument("steps",
                         type = int,
-                        help = "Numbper of steps for the particle to take",
+                        help = "Number of steps for the particle to take",
                         nargs = "?",
-                        default = 10) 
+                        default = 1000000) 
     parser.add_argument("seed",
                         type = int,
                         help = "Seed of the random number generator",
