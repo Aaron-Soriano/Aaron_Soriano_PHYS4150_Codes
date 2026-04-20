@@ -49,16 +49,25 @@ def particle_animation(x_coords, y_coords, show_path):
     #  at each step in the chain
     #show_path: bool, show the path of the particle
     #Displayed the animated path of the particle 
-
+    
+    #This is here because bool("False") == True
+    if show_path == "True":  
+        show_path = True
+    elif show_path == "False":
+        show_path = False
+    else:
+        raise Exception("Please only use 'True' or 'False'")
+    
     fig, ax = plt.subplots()
 
     ax.set_xlim((-50, 50))
     ax.set_ylim((-50, 50))
     ax.set_title("Brownian Motion Particle")
     
-    line = ax.plot(x_coords[0], y_coords[0],
-                   color = "green",
-                   zorder = 1)[0]
+    if show_path: #Only show the path if asked for
+        line = ax.plot(x_coords[0], y_coords[0],
+                       color = "green",
+                       zorder = 1)[0]
     
     particle = patch.Circle((0,0),
                             radius = 1,
@@ -68,33 +77,34 @@ def particle_animation(x_coords, y_coords, show_path):
     
 
     def update(frame):
-        x_pos =  x_coords[frame]
+        x_pos = x_coords[frame]
         y_pos = y_coords[frame]
 
-        particle.set_center((x_pos, y_pos))
-        line.set_xdata(x_coords[:frame])
-        line.set_ydata(y_coords[:frame])
+        particle.set_center((x_pos, y_pos)) #Move the particle
+        
+        if show_path:                       #Only show the path if asked for
+            line.set_xdata(x_coords[:frame])
+            line.set_ydata(y_coords[:frame])
     
-        return particle, line 
+            return particle, line 
+        
+        return particle
 
     ani = anime.FuncAnimation(fig = fig,
                               func = update,
                               interval = 20, 
                               frames = args.steps
                               )    
-    
-    if not show_path:  #Remove the path if not asked for
-        line.remove()
 
     plt.show()
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
     parser.add_argument("show_path",
-                        type = bool,
+                        type = str,
                         help = "Show the previous steps as a line behind the particle",
                         nargs = "?",
-                        default = True)   
+                        default = "True")   
     parser.add_argument("steps",
                         type = int,
                         help = "Number of steps for the particle to take",
@@ -110,7 +120,6 @@ if __name__ == "__main__":
     #Get coords of moving particle
     rng = np.random.default_rng(seed = args.seed)
     x_coords, y_coords = particle_motion(args.steps, rng)
-
     #Animate it
     particle_animation(x_coords, y_coords, args.show_path) 
 
