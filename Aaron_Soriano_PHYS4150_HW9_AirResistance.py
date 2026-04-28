@@ -4,6 +4,7 @@
 import numpy as np
 import argparse
 import pandas as pd 
+from plotly.subplots import make_subplots
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -73,60 +74,108 @@ def RK4(f, h, r0, v0, m):
 
     return t_coords, r_coords
 
-def plot_trajectory():
+def figure_concat(from_fig, to_fig, row, col):
+    #Extracts the data from `from_fig` and puts it into the subplot figure in `to_fig` 
+    #at row = `row` and col = `col`
+
+    for trace in from_fig.data:
+        to_fig.add_trace(trace,
+                         row = row, col = col)
+
     
-    theta = 30 * np.pi / 180                            #degrees -> radians, inital angle of the cannon
+def plot_trajectory(theta):
+    #theta: float, angle in degrees of the cannon
+    #Plots the 
+
+    theta *= np.pi / 180                                #degrees -> radians, inital angle of the cannon
     r0 = np.array([0, 0])                               #m, Start at ground level
     v0 = 100 * np.array([np.cos(theta), np.sin(theta)]) #m/s, Inital velocity of cannonball
-    h = 0.01                                             #s, Size of time step
-
-    t_coords, r_coords = RK4(acceleration, h, r0, v0, 1) 
+    h = 0.01                                            #s, Size of time step
     
-    x_coords = [r[0] for r in r_coords]
-    y_coords = [r[1] for r in r_coords]
-    
-    trajectory_df = pd.DataFrame({ #Will hold all the data
+    trajectory_df = pd.DataFrame({ #Will hold all the trajectory data
             "x_coords" : [],
             "y_coords" : [],
             "mass" : []
             }) 
+    
+    mdt_df = pd.DataFrame({ #Will hold all the data for mass vs. final distance, and mass vs air time
+            "mass" : [],
+            "range" : [],
+            "air_time" : []
+            })
 
     for m in range(1, 21): #Testing masses from 1kg to 20kg
-        _, r_coords = RK4(acceleration, h, r0, v0, m) 
+        t_coords, r_coords = RK4(acceleration, h, r0, v0, m) 
     
         x_coords = [r[0] for r in r_coords]
         y_coords = [r[1] for r in r_coords]
-
-        current_df = pd.DataFrame({
-            "x_coords" : x_coords,
-            "y_coords" : y_coords,
-            "mass" : f"{m} kg"
-            })
         
-        trajectory_df = pd.concat([trajectory_df, current_df],
-                                  ignore_index = True)
-    
-    fig = px.line(trajectory_df, 
-                  x = "x_coords", y = "y_coords",
-                  color = "mass",
-                  title = "Cannon Trajectories")
+        if m % 5 == 0 or m == 1: #Only looking at common sized cannonballs (1, 5, 10, 15, 20kg)
+            current_df = pd.DataFrame({
+                "x_coords" : x_coords,
+                "y_coords" : y_coords,
+                "mass" : f"{m} kg"
+                })
+            
+            trajectory_df = pd.concat([trajectory_df, current_df],
+                                      ignore_index = True)
 
-    fig.update_layout(
+        current_df = pd.DataFrame({ 
+            "mass" : [m],
+            "range" : [x_coords[-1]],   #The last x-coord in the simulation is about the final range of the projectile 
+            "air_time" : [t_coords[-1]] #The last t-coord in the simulation is about the whole time spent in the air
+            })  
+         
+        mdt_df = pd.concat([mdt_df, current_df],
+                           ignore_index = True)
+    
+    #Master Figure
+    fig = make_subplots(          
+        rows = 2, cols = 2,
+        specs = [
+            [{"colspan" : 2}, None],
+            [{},              {}  ]
+            ],
+        subplot_titles = ("Sample of Cannon Trajectories",
+                          "Mass of Cannonball vs Air Time",
+                          "Mass of Cannonball vs Range"))
+    
+    #Figure for sample cannon shots
+    sample_shot_fig = px.line(trajectory_df, 
+                  x = "x_coords", y = "y_coords",
+                  color = "mass")
+
+    figure_concat(sample_shot_fig, fig, 1, 1)
+    fig.update_xaxes(title_text = "Distance (m)", row = 1, col = 1)
+    fig.update_yaxes(title_text = "Height (m)", row = 1, col = 1)
+    
+    """sample_shot_fig.update_layout(
             xaxis =  dict(title = {"text" : "Distance (m)"}),
             yaxis =  dict(title = {"text" : "Height (m)"}),
             legend = dict(title_text = "Mass (kg)")
-         )
-                
+            )"""
+    
+    #Mass vs time figure 
+    
+    mvt_fig = px.line(mdt_df, 
+                      x = "mass", y = "air_time")
+    figure_concat(mvt_fig, fig, 2, 1)
+
+    #Mass vs range figure 
+    
+    mvt_fig = px.line(mdt_df, 
+                      x = "mass", y = "range")
+    figure_concat(mvt_fig, fig, 2, 2)
+
     fig.show()
     
 if __name__ == "__main__":    
-    """parser = argparse.ArgumentParser()
-    parser.add_argument("plot_num",
-                        type = int,
-                        help = """""",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("angle",
+                        type = float,
+                        help = """Angle in degrees of the cannon, default: 30""",
                         nargs = "?",
-                        default = 0,
-                        choices = [0, 1, 2, 3])   
-    args = parser.parse_args()"""
-    plot_trajectory()
+                        default = 30)   
+    args = parser.parse_args()
+    plot_trajectory(args.angle)
 
