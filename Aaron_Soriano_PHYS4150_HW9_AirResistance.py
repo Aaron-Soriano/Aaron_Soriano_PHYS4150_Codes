@@ -160,13 +160,18 @@ def plot_trajectory(theta):
     mvt_fig = px.line(mdt_df, 
                       x = "mass", y = "air_time")
     figure_concat(mvt_fig, fig, 2, 1)
+    fig.update_xaxes(title_text = "Mass (kg)", row = 2, col = 1)
+    fig.update_yaxes(title_text = "Time (s)", row = 2, col = 1)
 
     #Mass vs range figure 
     
     mvt_fig = px.line(mdt_df, 
                       x = "mass", y = "range")
     figure_concat(mvt_fig, fig, 2, 2)
+    fig.update_xaxes(title_text = "Mass (kg)", row = 2, col = 2)
+    fig.update_yaxes(title_text = "Range (m)", row = 2, col = 2)
 
+    #Final display
     fig.show()
     
 if __name__ == "__main__":    
