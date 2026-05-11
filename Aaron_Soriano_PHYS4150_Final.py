@@ -4,96 +4,179 @@
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns   
+import itertools as it  
 
 
-def quantum_zeno_run(N, N_prime, ME, seed = None): 
+def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True): 
     
     def rotate(state, theta): 
-        #State: Density matrix of current state
+        #state: Density matrix of current state
         #theta: angle to rotate 
         #Rotates the on/off switch of the quantum state given in `state` by an angle of `theta`
         #Returns the resulting density matrix
 
         #Rotate switch
-        """R = np.block([     
-            [np.cos(theta/2) * np.eye(4), -np.sin(theta/2) * np.eye(4)], #Rotate the Off/On switch
-            [np.sin(theta/2) * np.eye(4),  np.cos(theta/2) * np.eye(4)]  #by theta
-        ]) """
-        tl = np.zeros((4,4))
-        tl[0,0] = np.cos(theta/2) 
-        tr = np.zeros((4,4))
-        tr[0,0] = -np.sin(theta/2) 
-        bl = np.zeros((4,4))
-        bl[0,0] = np.sin(theta/2) 
-        br = np.zeros((4,4))
-        br[0,0] = np.cos(theta/2)
+        C = np.cos(theta/2) 
+        S = np.sin(theta/2) 
 
-        R = np.block([     
-            [tl, tr], #Rotate the Off/On switch
-            [bl, br]                #by theta
+        #Final assembly
+            
+        R = np.block([    
+            [np.eye(4),         np.zeros((4, 4)),       np.zeros((4, 4))     ], #Rotate the Off/On switch
+            [np.zeros((4, 4)),  np.diag([C, 1, 1, 1]),  np.diag([-S, 1, 1, 1])], #by theta, but only to 
+            [np.zeros((4, 4)),  np.diag([S, 1, 1, 1]),  np.diag([C, 1, 1, 1])]  #|00> state
+        ])
+
+        after_state = R @ state @ R.T
+        after_state /= np.trace(after_state)
+        return after_state
+    
+    def rotate_prime(state, theta):
+        #state: Density matrix of current state
+        #theta: angle to rotate 
+        #Rotates the off/off' switch  by an angle of `theta`
+        #Returns the resulting density matrix
+        
+        #Rotate switch
+        C = np.cos(theta/2) 
+        S = np.sin(theta/2) 
+
+        #Final assembly
+        R = np.block([    
+            [np.diag([C, 1, 1, 1]),  np.diag([-S, 1, 1, 1]), np.zeros((4, 4))],
+            [np.diag([S, 1, 1, 1]), np.diag([C, 1, 1, 1]), np.zeros((4, 4))], #Rotate the Off'/Off switch
+            [np.zeros((4, 4)),       np.zeros((4, 4)),      np.eye(4)       ]  #by theta
         ]) 
 
         after_state = R @ state @ R.T
         after_state /= np.trace(after_state)
         return after_state
     
-    def grover_alg(state, ME):
+    def grover_alg(state, ME, ideal = True):
         #State: Density matrix of current state
         #ME: The element to be interogated 
+        #ideal: bool, idealized grover's alg, just outuputs |On>|ME>
         #Applies Grover's alg to `state`
         #Returns the resulting density matrix
-
-        diffuse = np.identity(4) - (1/2)*np.ones((4,4))          #Diffusive operator
-        oracle = np.identity(4) - (1/2)*np.array([[1, 0, 0, 0],  #Oracle looks for |00>
-                                                  [0, 0, 0, 0],
-                                                  [0, 0, 0, 0],
-                                                  [0, 0, 0, 0]])
         
-        Q = np.block([
-            [np.eye(4),         np.zeros((4,4))],  #Only apply the alg if swtich is |On>
-            [np.zeros((4,4)), -diffuse @ oracle]
+        if ideal:
+            Q = np.eye(4)
+            Q[ME, 0] = 1
+            Q[ME, ME] = 0
+    
+        else: 
+            diffuse = np.eye(4) - (1/2)*np.ones((4,4)) #Diffusive operator
+            oracle = np.zeros((4,4))                   #Interogating `ME` -> 0 all other columns 
+            oracle[ME, ME] = 1                         #only look at `ME`th column
+            oracle = np.eye(4) - (1/2)*oracle          #Oracle operator
+        
+            Q = (-diffuse @ oracle) @ (-diffuse @ oracle) #Searching over 4 elements -> sqrt(4) loops
+            #Q /= np.trace(Q)
+
+            Q[:, 1:] = np.eye(4)[:, 1:] #Only apply to |00>
+
+        #Final assembly
+        final_block = np.block([ 
+            [np.eye(4),       np.zeros((4,4)), np.zeros((4,4))],  
+            [np.zeros((4,4)), np.eye(4),       np.zeros((4,4))],
+            [np.zeros((4,4)), np.zeros((4,4)), Q              ]
         ])
         
-        after_state = Q @ Q @ state @ Q.T @ Q.T    #Searching over 4 elements -> sqrt(4) loops
+        after_state = final_block @ state @ final_block.T   #Apply the operation 
         after_state /= np.trace(after_state)
-
         return after_state 
     
     def measure(state, rng):
         #state: Density matrix of current state
         #rng: A numpy random number generator 
-        #Returns a string giving the state measured
+        #Returns a string giving the state measured and the desity matrix for the new state
+        #after measuring the output qubits
         
-        states = ["|Off00>", "|Off01>", "|Off10>", "|Off11>", "|On00>", "|On01>", "|On10>", "|On11>"]
-        probs = [state[i, i] for i in range(8)] #The diagonals correspond to probabilites of
-                                                #measuring each state                     
-        measured_state = rng.choice(states, size = 1, p = probs)[0] #Pick a state
+        states = ["|Off00>", "|01>", "|10>", "|11>",
+                  "|On00>", "|01>", "|10>", "|11>"]
         
+        probs = np.array([state[i, i] for i in range(4, 12)], float) #The diagonals correspond 
+                                                                 #to probabilites of measuring 
+                                                                 #each state 
+        probs = np.abs(probs)
+        probs /= np.sum(probs)
+        measurment = rng.choice(states, p = probs) #Pick a state
+
         detectors = {         #Turn this into a detector reading
-            "|Off00>" : "d1",
-            "|Off01>" : "d2",
-            "|Off10>" : "d3", 
-            "|Off11>" : "d4", 
-            "|On00>"  : "d5", 
-            "|On01>"  : "d2", 
-            "|On10>"  : "d3", 
-            "|On11>"  : "d4"
+            "|Off00>"  : "d5",
+            "|01>"  : "d2",
+            "|10>"  : "d3", 
+            "|11>"  : "d4", 
+            "|On00>"   : "d1", 
         }
-        return detectors[measured_state]
+
+        #Measument matrix 
+        measured_index = states.index(measurment) % 4 
+        M_mini = np.zeros((4, 4))
+        M_mini[measured_index, measured_index] = 1
+
+        M = np.block([
+            [np.eye(4),       np.zeros((4,4)), np.zeros((4,4))],
+            [np.zeros((4,4)), M_mini,          np.zeros((4,4))],
+            [np.zeros((4,4)), np.zeros((4,4)), M_mini         ]
+        ])
+
+        after_state = M @ state @ M.T
+        after_state /= np.trace(after_state)
+
+        return detectors[measurment], after_state
+
     
+    def measure_prime (state, rng):
+        #state: Density matrix of current state
+        #rng: A numpy random number generator 
+        #Returns a string giving the state measured and the desity matrix for the new state
+        #after measuring the |Off/On> qubit and the output qubits 
+        
+        states = ["|Off00>", "|Off01>", "|Off10>", "|Off11>",
+                  "|On00>", "|On01>", "|On10>", "|On11>"]
+        
+        probs = np.array([state[i, i] for i in range(4, 12)], float) #The diagonals correspond 
+                                                                 #to probabilites of measuring 
+                                                                 #each state 
+        probs = np.abs(probs)
+        probs /= np.sum(probs)
+        measurment = rng.choice(states, p = probs) #Pick a state
+
+        detectors = {         #Turn this into a detector reading
+            "|Off00>"  : "d5",
+            "|Off01>"  : "d2",
+            "|Off10>"  : "d3", 
+            "|Off11>"  : "d4", 
+            "|On00>"   : "d1", 
+            "|On01>"   : "d2",
+            "|On10>"   : "d3", 
+            "|On11>"   : "d4", 
+        }
+
+        #Measument matrix 
+        measured_index = states.index(measurment) 
+        M_mini = np.zeros((8, 8))
+        M_mini[measured_index, measured_index] = 1
+
+        M = np.block([
+            [np.eye(4),        np.zeros((4, 8))],
+            [np.zeros((8, 4)), M_mini          ]
+        ])
+
+        after_state = M @ state @ M
+        after_state /= np.trace(after_state)
+
+        return detectors[measurment], after_state
+
+
+
     #Setup
-    inital_state = np.array([ 
-        [1, 0, 0, 0, 0, 0, 0, 0], #Density matrix of system, states listed like: 
-        [0, 0, 0, 0, 0, 0, 0, 0], #[|Off00>, |Off01>, |Off10>, |Off11>, |On00>, |On01>, |On10>, |On11>]
-        [0, 0, 0, 0, 0, 0, 0, 0], 
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0]
-    ], dtype = float)
+    inital_state = np.zeros((12, 12))#Density matrix of system, states listed like: 
+                                     #[|Off'00>, |Off'01>, |Off'10>, |Off'11>,
+                                     # |Off00>, |Off01>, |Off10>, |Off11>,
+                                     # |On00>, |On01>, |On10>, |On11>] 
+    inital_state[0, 0] = 1           #Start in the |Off'00> state
 
     rng = np.random.default_rng(seed)
     
@@ -105,53 +188,98 @@ def quantum_zeno_run(N, N_prime, ME, seed = None):
         "d5" : 0
     }
 
-    #The actual loop
-    current_state = inital_state.copy()
-    
-    for j in range(N_prime):
+    #The actual process
+
+    if base_case:
+
+        current_state = inital_state.copy() #New qubit
+        theta = np.pi / 2                   #Angle for |Off / On> switch
+        theta_prime = np.pi                 #Angle for |Off' / Off> swtich 
+
+        for _ in range(N_prime):           
         
-        current_state = inital_state.copy()                    #New matrix
-        theta = (j * np.pi) / (2 * N_prime)                    #Rotate |Off' / Off>
-        current_state[0, 0] *= np.cos(theta) 
+            current_state = inital_state.copy()                      #New qubit
+            current_state = rotate_prime(current_state, theta_prime) #Rotate |Off' / Off> swtich 
 
-        for i in range(1, N+1):
+            for _ in range(2):
+            
+                current_state = rotate(current_state, theta)             #Rotate |Off / On> switch
+                current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
+                final_state, current_state = measure(current_state, rng) #Measure the output qubits
+                measured_detections[final_state] += 1                    #Record the result
+        
 
-            theta = (i * np.pi) / (2 * N)
-            current_state = rotate(current_state, theta)       #Rotate switch
-            current_state = grover_alg(current_state, ME)      #Apply alg. to |On00>
-            current_state = rotate(current_state, theta)       #Rotate switch
-            final_state = measure(current_state, rng)          #Look at detectors
-            measured_detections[final_state] += 1              #Record the result
+    else:
+
+        current_state = inital_state.copy() #New qubit
+        theta = np.pi / N                   #Angle for |Off / On> switch
+        theta_prime = np.pi / N_prime       #Angle for |Off' / Off> swtich 
+
+        for _ in range(N_prime):           
+        
+            current_state = rotate_prime(current_state, theta_prime) #Rotate |Off' / Off> swtich 
+
+            for _ in range(N):
+            
+                current_state = rotate(current_state, theta)             #Rotate |Off / On> switch
+                current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
+                final_state, current_state = measure(current_state, rng) #Measure the output qubits
+                measured_detections[final_state] += 1                    #Record the result
     
     return measured_detections
 
-def measurement_graph(N, N_prime):
-    #measurments: dict, constins the names of detectors and number of hits
+def base_case_graph(N_prime):
     #Displays a bar chart that shows the  
-    
-    measurements_df = pd.DataFrame({})
 
-    for ME in range(2):
-        measurement = quantum_zeno_run(N, N_prime, ME)
+    fig, ax = plt.subplot_mosaic([
+        [f"ideal_{i}" for i in range(4)],
+        [f"real_{i}" for i in range(4)]
+    ], layout = "tight")
+
+    for ME, id in it.product(range(4), (True, False)):
         
-    """names = list(measurements.keys())
-    values = np.array(list(measurements.values()))
-    values = values / sum(values)
-    plt.bar(names, values,
-            color = ["red", "orange", "yellow", "blue", "purple"],
-            label = [f"Detector {i}" for i in range(1,6)]
-            )
+        #To locate which graph were in
+        graph_name = "ideal_" if id else "real_"
+        graph_name += str(ME)
+        
+        #Fill out graph
+        measurements = quantum_zeno_run(1, N_prime, ME,
+                                        ideal = id,
+                                        base_case = True) 
+        names = list(measurements.keys())                    
+        values = np.array(list(measurements.values()))
+        values = values / sum(values)
+        
+        ax[graph_name].bar(names, values,
+                color = ["red", "orange", "yellow", "blue", "purple"],
+                label = [f"Detector {i}" for i in range(1,6)]
+                )
+        ax[graph_name].set_ylim((0, 1))
+        ax[graph_name].set_yticks([0, 0.25, 0.50, 0.75, 1])
+        ax[graph_name].grid(which = "major",
+                       axis = "y")
+        alg = "ideal" if id else "real"
+        ax[graph_name].set_title(f"ME = {ME} \n Grover's Alg: " + alg)
     
-    plt.show()"""
+    plt.suptitle("Probabilites of detecting a particle at the detectors")
+    plt.show()
+
 
 if __name__ == "__main__":    
-    """parser = argparse.ArgumentParser()
-    parser.add_argument("x",
-                        type = float,
-                        help = "Distance to planet in lightyears")
-    parser.add_argument("v",
-                        type = float,
-                        help = "Velocity of the spaceship as a fraction of the speed of light")    
-    args = parser.parse_args()"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("N",
+                        type = int,
+                        help = "Number of subroutine divisions",
+                        nargs = "?",
+                        default = 10)
+    parser.add_argument("N_prime",
+                        type = int,
+                        help = "Number of routine divisions",
+                        nargs = "?",
+                        default = 1000)    
+    args = parser.parse_args()
 
-    measurement_graph(1000, 1)
+    base_case_graph(args.N_prime)
+    #measurement_graph()
+        
+    
