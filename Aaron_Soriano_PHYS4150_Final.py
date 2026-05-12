@@ -140,51 +140,6 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
 
         return detectors[measurment], after_state
 
-    
-    """def measure_prime (state, rng):
-        #state: Density matrix of current state
-        #rng: A numpy random number generator 
-        #Returns a string giving the state measured and the desity matrix for the new state
-        #after measuring the |Off/On> qubit and the output qubits 
-        
-        states = ["|Off00>", "|Off01>", "|Off10>", "|Off11>",
-                  "|On00>", "|On01>", "|On10>", "|On11>"]
-        
-        probs = np.array([state[i, i] for i in range(4, 12)], float) #The diagonals correspond 
-                                                                 #to probabilites of measuring 
-                                                                 #each state 
-        probs = np.abs(probs)
-        probs /= np.sum(probs)
-        measurment = rng.choice(states, p = probs) #Pick a state
-
-        detectors = {         #Turn this into a detector reading
-            "|Off00>"  : "d5",
-            "|Off01>"  : "d2",
-            "|Off10>"  : "d3", 
-            "|Off11>"  : "d4", 
-            "|On00>"   : "d1", 
-            "|On01>"   : "d2",
-            "|On10>"   : "d3", 
-            "|On11>"   : "d4", 
-        }
-
-        #Measument matrix 
-        measured_index = states.index(measurment) 
-        M_mini = np.zeros((8, 8))
-        M_mini[measured_index, measured_index] = 1
-
-        M = np.block([
-            [np.eye(4),        np.zeros((4, 8))],
-            [np.zeros((8, 4)), M_mini          ]
-        ])
-
-        after_state = M @ state @ M
-        after_state /= np.trace(after_state)
-
-        return detectors[measurment], after_state"""
-
-
-
     #Setup
     inital_state = np.zeros((12, 12))#Density matrix of system, states listed like: 
                                      #[|Off'00>, |Off'01>, |Off'10>, |Off'11>,
@@ -230,23 +185,25 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         current_state = inital_state.copy() #New qubit
         theta = np.pi / N                   #Angle for |Off / On> switch
         theta_prime = np.pi / N_prime       #Angle for |Off' / Off> swtich 
-        measured_detections_coords = []     #To keep track of successes over time
+        probd1_coords = []                  #To keep track of successes over time
 
-        for _ in range(N_prime):           
-        
+        for i in range(N_prime):           
+            current_state = inital_state.copy()                      #New qubit
             current_state = rotate_prime(current_state, theta_prime) #Rotate |Off' / Off> swtich 
 
-            for i in range(N):
-            
+            for _ in range(N):
+                
                 current_state = rotate(current_state, theta)             #Rotate |Off / On> switch
                 current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
                 final_state, current_state = measure(current_state, rng) #Measure the output qubits
                 measured_detections[final_state] += 1                    #Record the result
 
-                if i % 10 == 0: 
-                    measured_detections_coords.append(measured_detections)
+            if i % 2 == 0: 
+                probd1 = measured_detections["d1"] / sum(measured_detections.values())
+                probd1_coords.append(probd1)
+                    
 
-        return measured_detections_coords
+        return probd1_coords
     
 def base_case_graph(N_prime):
     #Displays a bar chart that shows the simplified version of the machanism (just the subroutine) 
@@ -281,8 +238,8 @@ def base_case_graph(N_prime):
         alg = "Ideal" if id else "Real"
         ax[graph_name].set_title(f"ME = {ME} \n Grover's Alg: " + alg)
     
-    plt.suptitle("Probabilites of Detecting a Particle at the Detectors")
-    plt.show()
+    fig.suptitle("Probabilites of Detecting a Particle at the Detectors")
+    #plt.show()
 
 def cfc_graph(N, N_prime):
     
@@ -298,13 +255,29 @@ def cfc_graph(N, N_prime):
         measurement_coords = quantum_zeno_run(N, N_prime, ME,
                                               ideal = True,
                                               base_case = False)
-        prob_d1[f"ME{ME}"] = [k["d1"] / sum(k.values()) for k in measurement_coords]
+        prob_d1[f"ME{ME}"] = measurement_coords  
+        
 
     #P(Success|ME = i) = P(D1 hit|ME = i) / (P(D1 hit|ME = i) + P(D1 hit|ME = 1))
+    num_points = len(prob_d1["ME0"])
+    fig2, succ_plot = plt.subplots()
 
-        
+    for ME in range(4):
+        for i in range(num_points):
+            prob_d1_MEi = prob_d1[f"ME{ME}"][i]
+            prob_d1_ME0 = prob_d1["ME0"][i]
+
+            if (prob_d1_MEi + prob_d1_ME0) > 0:
+                prob_d1[f"ME{ME}"][i] = prob_d1_MEi / (prob_d1_MEi + prob_d1_ME0)
+
+        succ_plot.plot(range(num_points), prob_d1[f"ME{ME}"],
+                 label = f"ME{ME}")
+        succ_plot.set_title("Probability of Successful Interogation for each ME")
+        #succ_plot.set_ylim((0, 1))
+
     
-
+    fig2.legend()
+    
         
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
@@ -312,7 +285,7 @@ if __name__ == "__main__":
                         type = int,
                         help = "Number of subroutine divisions",
                         nargs = "?",
-                        default = 10)
+                        default = 2)
     parser.add_argument("N_prime",
                         type = int,
                         help = "Number of routine divisions",
@@ -320,7 +293,8 @@ if __name__ == "__main__":
                         default = 100)    
     args = parser.parse_args()
 
-    base_case_graph(args.N_prime)
-    #cfc_graph(args.N, args.N_prime)
+    #base_case_graph(args.N_prime)
+    cfc_graph(args.N, args.N_prime)
+    plt.show()
         
     
