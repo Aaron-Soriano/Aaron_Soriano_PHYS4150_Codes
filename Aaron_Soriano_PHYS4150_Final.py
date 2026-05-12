@@ -61,19 +61,31 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         
         if ideal:
             Q = np.eye(4)
-            Q[ME, 0] = 1
+            Q[ME, 0 ] = 1
             Q[ME, ME] = 0
     
         else: 
-            diffuse = np.eye(4) - (1/2)*np.ones((4,4)) #Diffusive operator
-            oracle = np.zeros((4,4))                   #Interogating `ME` -> 0 all other columns 
-            oracle[ME, ME] = 1                         #only look at `ME`th column
-            oracle = np.eye(4) - (1/2)*oracle          #Oracle operator
-        
-            Q = (-diffuse @ oracle) @ (-diffuse @ oracle) #Searching over 4 elements -> sqrt(4) loops
-            #Q /= np.trace(Q)
+            #Only apply to |00> -> Turn only |00> to superposition af all states
+            applier = np.array([
+                [0.25, 0, 0, 0],
+                [0.25, 0, 0, 0],
+                [0.25, 0, 0, 0],
+                [0.25, 0, 0, 0]
+            ])
 
-            Q[:, 1:] = np.eye(4)[:, 1:] #Only apply to |00>
+            #Diffusive operator
+            diffuse = np.eye(4) - (1/2)*np.ones((4,4)) 
+
+            #Oracle operator
+            oracle = np.zeros((4,4))                   #Interogating `ME` -> 0 all other columns 
+            oracle[ME, ME] = 1                         #Only look at `ME`th column
+            oracle = np.eye(4) - 2*oracle              
+        
+            Q = -oracle @ diffuse
+            Q = Q @ Q @ applier
+            row_ME = Q[ME, :] 
+            Q = np.eye(4)
+            Q[ME, :] = row_ME
 
         #Final assembly
         final_block = np.block([ 
@@ -82,7 +94,9 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
             [np.zeros((4,4)), np.zeros((4,4)), Q              ]
         ])
         
-        after_state = final_block @ state @ final_block.T   #Apply the operation 
+        #Searching over 4 elements -> sqrt(4) applications
+        after_state =  final_block @ state @ final_block.T   
+             
         after_state /= np.trace(after_state)
         return after_state 
     
@@ -127,7 +141,7 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         return detectors[measurment], after_state
 
     
-    def measure_prime (state, rng):
+    """def measure_prime (state, rng):
         #state: Density matrix of current state
         #rng: A numpy random number generator 
         #Returns a string giving the state measured and the desity matrix for the new state
@@ -167,7 +181,7 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         after_state = M @ state @ M
         after_state /= np.trace(after_state)
 
-        return detectors[measurment], after_state
+        return detectors[measurment], after_state"""
 
 
 
@@ -207,6 +221,8 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
                 current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
                 final_state, current_state = measure(current_state, rng) #Measure the output qubits
                 measured_detections[final_state] += 1                    #Record the result
+
+        return measured_detections
         
 
     else:
@@ -214,22 +230,26 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         current_state = inital_state.copy() #New qubit
         theta = np.pi / N                   #Angle for |Off / On> switch
         theta_prime = np.pi / N_prime       #Angle for |Off' / Off> swtich 
+        measured_detections_coords = []     #To keep track of successes over time
 
         for _ in range(N_prime):           
         
             current_state = rotate_prime(current_state, theta_prime) #Rotate |Off' / Off> swtich 
 
-            for _ in range(N):
+            for i in range(N):
             
                 current_state = rotate(current_state, theta)             #Rotate |Off / On> switch
                 current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
                 final_state, current_state = measure(current_state, rng) #Measure the output qubits
                 measured_detections[final_state] += 1                    #Record the result
-    
-    return measured_detections
 
+                if i % 10 == 0: 
+                    measured_detections_coords.append(measured_detections)
+
+        return measured_detections_coords
+    
 def base_case_graph(N_prime):
-    #Displays a bar chart that shows the  
+    #Displays a bar chart that shows the simplified version of the machanism (just the subroutine) 
 
     fig, ax = plt.subplot_mosaic([
         [f"ideal_{i}" for i in range(4)],
@@ -258,13 +278,34 @@ def base_case_graph(N_prime):
         ax[graph_name].set_yticks([0, 0.25, 0.50, 0.75, 1])
         ax[graph_name].grid(which = "major",
                        axis = "y")
-        alg = "ideal" if id else "real"
+        alg = "Ideal" if id else "Real"
         ax[graph_name].set_title(f"ME = {ME} \n Grover's Alg: " + alg)
     
-    plt.suptitle("Probabilites of detecting a particle at the detectors")
+    plt.suptitle("Probabilites of Detecting a Particle at the Detectors")
     plt.show()
 
+def cfc_graph(N, N_prime):
+    
+    #Getting prob. of hitting Detector 1 for each ME
+    prob_d1 = {
+        "ME0": [],
+        "ME1": [],
+        "ME2": [],
+        "ME3": []
+        }
 
+    for ME in range(4):
+        measurement_coords = quantum_zeno_run(N, N_prime, ME,
+                                              ideal = True,
+                                              base_case = False)
+        prob_d1[f"ME{ME}"] = [k["d1"] / sum(k.values()) for k in measurement_coords]
+
+    #P(Success|ME = i) = P(D1 hit|ME = i) / (P(D1 hit|ME = i) + P(D1 hit|ME = 1))
+
+        
+    
+
+        
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
     parser.add_argument("N",
@@ -276,10 +317,10 @@ if __name__ == "__main__":
                         type = int,
                         help = "Number of routine divisions",
                         nargs = "?",
-                        default = 1000)    
+                        default = 100)    
     args = parser.parse_args()
 
     base_case_graph(args.N_prime)
-    #measurement_graph()
+    #cfc_graph(args.N, args.N_prime)
         
     
