@@ -44,8 +44,8 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         #Final assembly
         R = np.block([    
             [np.diag([C, 1, 1, 1]),  np.diag([-S, 1, 1, 1]), np.zeros((4, 4))],
-            [np.diag([S, 1, 1, 1]), np.diag([C, 1, 1, 1]), np.zeros((4, 4))], #Rotate the Off'/Off switch
-            [np.zeros((4, 4)),       np.zeros((4, 4)),      np.eye(4)       ]  #by theta
+            [np.diag([S, 1, 1, 1]),  np.diag([C, 1, 1, 1]),  np.zeros((4, 4))], #Rotate the Off'/Off switch
+            [np.zeros((4, 4)),       np.zeros((4, 4)),       np.eye(4)       ]  #by theta
         ]) 
 
         after_state = R @ state @ R.T
@@ -61,17 +61,13 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         
         if ideal:
             Q = np.eye(4)
-            Q[ME, 0 ] = 1
+            Q[ME, 0] = 1
             Q[ME, ME] = 0
     
         else: 
-            #Only apply to |00> -> Turn only |00> to superposition af all states
-            applier = np.array([
-                [0.25, 0, 0, 0],
-                [0.25, 0, 0, 0],
-                [0.25, 0, 0, 0],
-                [0.25, 0, 0, 0]
-            ])
+            #Only apply to |00> 
+            col_00 = np.eye(4)[:, 0 ]
+            col_ME = 0.0 * np.ones((4, 4))[:, ME] 
 
             #Diffusive operator
             diffuse = np.eye(4) - (1/2)*np.ones((4,4)) 
@@ -79,14 +75,18 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
             #Oracle operator
             oracle = np.zeros((4,4))                   #Interogating `ME` -> 0 all other columns 
             oracle[ME, ME] = 1                         #Only look at `ME`th column
-            oracle = np.eye(4) - 2*oracle              
+            oracle = np.eye(4) - 2*oracle  
+            
+            #Apply the algorithm
+            Q = -diffuse @ oracle
+            col_00 = Q @ Q @ col_00                    #4 elements to search -> sqrt(4) operations
+            col_00 += 1                                #Turn into real probabilites
+                   
+            Q = np.abs(np.eye(4) - min(col_00) * np.ones((4,4)))
+            Q[:, 0] = col_00
+            Q[:, ME] = col_ME
+            Q /= np.trace(Q)
         
-            Q = -oracle @ diffuse
-            Q = Q @ Q @ applier
-            row_ME = Q[ME, :] 
-            Q = np.eye(4)
-            Q[ME, :] = row_ME
-
         #Final assembly
         final_block = np.block([ 
             [np.eye(4),       np.zeros((4,4)), np.zeros((4,4))],  
@@ -150,7 +150,7 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
     rng = np.random.default_rng(seed)
     
     measured_detections = {
-        "d1" : 0,
+        "d1" : 1,
         "d2" : 0,
         "d3" : 0,
         "d4" : 0,
@@ -188,14 +188,14 @@ def quantum_zeno_run(N, N_prime, ME, ideal, seed = None, base_case = True):
         probd1_coords = []                  #To keep track of successes over time
 
         for i in range(N_prime):           
-            current_state = inital_state.copy()                      #New qubit
+            #current_state = inital_state.copy()                      #New qubit
             current_state = rotate_prime(current_state, theta_prime) #Rotate |Off' / Off> swtich 
 
             for _ in range(N):
                 
                 current_state = rotate(current_state, theta)             #Rotate |Off / On> switch
                 current_state = grover_alg(current_state, ME, ideal)     #Apply alg. to |On00>
-                final_state, current_state = measure(current_state, rng) #Measure the output qubits
+                final_state, _ = measure(current_state, rng) #Measure the output qubits
                 measured_detections[final_state] += 1                    #Record the result
 
             if i % 2 == 0: 
@@ -239,7 +239,6 @@ def base_case_graph(N_prime):
         ax[graph_name].set_title(f"ME = {ME} \n Grover's Alg: " + alg)
     
     fig.suptitle("Probabilites of Detecting a Particle at the Detectors")
-    #plt.show()
 
 def cfc_graph(N, N_prime):
     
@@ -253,29 +252,30 @@ def cfc_graph(N, N_prime):
 
     for ME in range(4):
         measurement_coords = quantum_zeno_run(N, N_prime, ME,
-                                              ideal = True,
+                                              ideal = False,
                                               base_case = False)
-        prob_d1[f"ME{ME}"] = measurement_coords  
+        prob_d1[f"ME{ME}"] = np.array(measurement_coords)  
         
-
     #P(Success|ME = i) = P(D1 hit|ME = i) / (P(D1 hit|ME = i) + P(D1 hit|ME = 1))
     num_points = len(prob_d1["ME0"])
     fig2, succ_plot = plt.subplots()
 
     for ME in range(4):
-        for i in range(num_points):
-            prob_d1_MEi = prob_d1[f"ME{ME}"][i]
-            prob_d1_ME0 = prob_d1["ME0"][i]
 
-            if (prob_d1_MEi + prob_d1_ME0) > 0:
-                prob_d1[f"ME{ME}"][i] = prob_d1_MEi / (prob_d1_MEi + prob_d1_ME0)
+        prob_d1_MEi = prob_d1[f"ME{ME}"].copy()
+        prob_d1_ME0 = prob_d1["ME0"].copy()
+        
+        new_prob = prob_d1_ME0.copy() 
+        new_prob /= (prob_d1_MEi + prob_d1_ME0)
+
+        prob_d1[f"ME{ME}"] = new_prob
 
         succ_plot.plot(range(num_points), prob_d1[f"ME{ME}"],
                  label = f"ME{ME}")
-        succ_plot.set_title("Probability of Successful Interogation for each ME")
-        #succ_plot.set_ylim((0, 1))
-
-    
+        
+    succ_plot.set_title("Probability of Successful Interogation for each ME")
+    #succ_plot.set_ylim((0, 1))
+    succ_plot.set_xlabel("Number of iterations (N'/N)")
     fig2.legend()
     
         
@@ -290,10 +290,10 @@ if __name__ == "__main__":
                         type = int,
                         help = "Number of routine divisions",
                         nargs = "?",
-                        default = 100)    
+                        default = 1000)    
     args = parser.parse_args()
 
-    #base_case_graph(args.N_prime)
+    base_case_graph(args.N_prime)
     cfc_graph(args.N, args.N_prime)
     plt.show()
         
